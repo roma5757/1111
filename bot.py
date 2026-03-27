@@ -106,7 +106,7 @@ async def who_is(message: types.Message):
 
     user_id = int(args)
 
-    # Сначала ищем в базе
+    # --- Сначала ищем в базе ---
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("SELECT username, code FROM participants WHERE user_id=?", (user_id,))
@@ -119,15 +119,17 @@ async def who_is(message: types.Message):
         await message.reply(f"Найден в базе:\nUsername: {username_display}\nID: {user_id}\nКод: {code}")
         return
 
-    # Если нет в базе, пробуем получить через get_chat_member (только если в канале)
+    # --- Пробуем через канал ---
     try:
         chat_member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
         user = chat_member.user
         full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
         username_display = f"@{user.username}" if user.username else full_name if full_name else f"ID:{user.id}"
         await message.reply(f"Пользователь в канале:\n{username_display}\nID: {user.id}")
-    except Exception as e:
-        await message.reply(f"Не удалось найти пользователя: {e}")
+        return
+    except Exception:
+        # --- Если не найден нигде ---
+        await message.reply(f"Пользователь с ID {user_id} не найден в базе и не состоит в канале.")
 
 # --- Запуск бота ---
 if __name__ == "__main__":
