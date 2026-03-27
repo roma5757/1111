@@ -1,27 +1,20 @@
 import os
-import random
-import string
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters import Command
-from aiogram.client.session.aiohttp import AiohttpSession
-from database import init_db, add_participant, has_participated
+from database import init_db, add_participant, has_participated, get_next_code
 
 # Загрузка переменных окружения
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID")  # id канала для проверки подписки (например: -1001234567890)
-ADMIN_ID = os.getenv("ADMIN_ID")      # id админа для уведомлений
+CHANNEL_ID = os.getenv("CHANNEL_ID")  # id канала для проверки подписки
+ADMIN_ID = os.getenv("ADMIN_ID")      # id админа
 
 # Инициализация бота и базы данных
 init_db()
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-
-def generate_code(length: int = 8) -> str:
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 # Команда для отправки сообщения с кнопкой в канал
 @dp.message(Command(commands=["send"]))
@@ -60,17 +53,17 @@ async def handle_participation(callback: types.CallbackQuery):
             await callback.answer("Вы уже участвовали.", show_alert=True)
             return
 
-        # Генерация уникального кода
-        code = generate_code()
+        # Генерация уникального числового кода
+        code = get_next_code()
         add_participant(user.id, user.username or "", code)
 
         # Уведомление админа
         await bot.send_message(
             chat_id=ADMIN_ID,
-            text=f"Новый участник!\nUsername: @{user.username}\nID: {user.id}\nКод: {code}"
+            text=f"Новый участник!\nUsername: @{user.username or 'нет'}\nID: {user.id}\nКод: {code}"
         )
 
-        await callback.answer("Вы успешно участвовали! Ваш код отправлен администратору.", show_alert=True)
+        await callback.answer(f"Вы успешно участвовали! Ваш код: {code}", show_alert=True)
 
     except Exception as e:
         await callback.answer("Произошла ошибка. Попробуйте позже.", show_alert=True)
