@@ -19,21 +19,20 @@ dp = Dispatcher()
 # Глобальный флаг розыгрыша
 raffle_active = False
 
-# Команда для отправки сообщения с кнопкой в канал
+# Команда для отправки сообщения с кнопкой
 @dp.message(Command(commands=["send"]))
 async def send_message(message: types.Message):
     global raffle_active
+    if str(message.from_user.id) != ADMIN_ID:
+        await message.reply("У вас нет доступа к этой команде.")
+        return
+
+    raffle_active = True  # включаем розыгрыш
+
+    button = InlineKeyboardButton(text="Участвовать", callback_data="participate")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[button]])
+
     try:
-        if str(message.from_user.id) != ADMIN_ID:
-            await message.reply("У вас нет доступа к этой команде.")
-            return
-
-        raffle_active = True  # включаем розыгрыш
-
-        # Создаем inline кнопку
-        button = InlineKeyboardButton(text="Участвовать", callback_data="participate")
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[[button]])
-
         await bot.send_message(
             chat_id=CHANNEL_ID,
             text="Нажмите кнопку, чтобы участвовать!",
@@ -41,7 +40,7 @@ async def send_message(message: types.Message):
         )
         await message.reply("Розыгрыш запущен. Сообщение отправлено.")
     except Exception as e:
-        await message.reply(f"Ошибка: {e}")
+        await message.reply(f"Ошибка отправки сообщения: {e}")
 
 # Команда для остановки розыгрыша
 @dp.message(Command(commands=["stop"]))
@@ -52,9 +51,9 @@ async def stop_raffle(message: types.Message):
         return
 
     raffle_active = False
-    await message.reply("Розыгрыш остановлен. Нажатия на старую кнопку больше не будут учитываться.")
+    await message.reply("Розыгрыш остановлен. Нажатия на старую кнопку больше не учитываются.")
 
-# Обработка нажатия inline-кнопки
+# Обработка нажатия кнопки
 @dp.callback_query(lambda c: c.data == "participate")
 async def handle_participation(callback: types.CallbackQuery):
     global raffle_active
@@ -65,22 +64,18 @@ async def handle_participation(callback: types.CallbackQuery):
         return
 
     try:
-        # Проверка подписки
         chat_member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user.id)
         if chat_member.status in ["left", "kicked"]:
             await callback.answer("Подпишитесь на канал, чтобы участвовать.", show_alert=True)
             return
 
-        # Проверка, участвовал ли пользователь
         if has_participated(user.id):
             await callback.answer("Вы уже участвовали.", show_alert=True)
             return
 
-        # Генерация уникального числового кода
         code = get_next_code()
         add_participant(user.id, user.username or "", code)
 
-        # Уведомление админа
         await bot.send_message(
             chat_id=ADMIN_ID,
             text=f"Новый участник!\nUsername: @{user.username or 'нет'}\nID: {user.id}\nКод: {code}"
@@ -92,7 +87,7 @@ async def handle_participation(callback: types.CallbackQuery):
         await callback.answer("Произошла ошибка. Попробуйте позже.", show_alert=True)
         print(f"Error handling participation: {e}")
 
-# Запуск бота (поллинг)
+# Запуск бота
 if __name__ == "__main__":
     import asyncio
     asyncio.run(dp.start_polling(bot))
