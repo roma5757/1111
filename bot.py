@@ -10,7 +10,7 @@ import sqlite3
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-ADMIN_ID = os.getenv("ADMIN_ID")
+ADMIN_ID = int(os.getenv("ADMIN_ID").strip())  # Важно: int
 
 # Инициализация бота и базы данных
 init_db()
@@ -23,7 +23,7 @@ raffle_active = False  # Флаг текущего розыгрыша
 @dp.message(Command(commands=["send"]))
 async def send_message(message: types.Message):
     global raffle_active
-    if str(message.from_user.id) != ADMIN_ID:
+    if message.from_user.id != ADMIN_ID:
         await message.reply("У вас нет доступа к этой команде.")
         return
 
@@ -46,7 +46,7 @@ async def send_message(message: types.Message):
 @dp.message(Command(commands=["stop"]))
 async def stop_raffle(message: types.Message):
     global raffle_active
-    if str(message.from_user.id) != ADMIN_ID:
+    if message.from_user.id != ADMIN_ID:
         await message.reply("У вас нет доступа к этой команде.")
         return
 
@@ -83,7 +83,7 @@ async def handle_participation(callback: types.CallbackQuery):
         # Уведомление админа
         await bot.send_message(
             chat_id=ADMIN_ID,
-            text=f"Новый участник!\n{username_display}\nID: {user.id}\nКод: {code}"
+            text=f"Новый участник!\nUsername/Имя: {username_display}\nID: {user.id}\nКод: {code}"
         )
 
         await callback.answer(f"Вы успешно участвовали! Ваш код: {code}", show_alert=True)
@@ -95,7 +95,7 @@ async def handle_participation(callback: types.CallbackQuery):
 # --- Команда /who для поиска участника по ID ---
 @dp.message(Command(commands=["who"]))
 async def who_is(message: types.Message):
-    if str(message.from_user.id) != ADMIN_ID:
+    if message.from_user.id != ADMIN_ID:
         await message.reply("У вас нет доступа к этой команде.")
         return
 
@@ -115,20 +115,20 @@ async def who_is(message: types.Message):
 
     if row:
         username, code = row
-        username_display = username if username else "@нет"
-        await message.reply(f"Найден в базе:\nUsername: {username_display}\nID: {user_id}\nКод: {code}")
+        # Берём username из базы, имя/фамилию из базы не сохраняем, поэтому используем username
+        username_display = f"@{username}" if username else f"ID:{user_id}"
+        await message.reply(f"Найден в базе:\nUsername/Имя: {username_display}\nID: {user_id}\nКод: {code}")
         return
 
-    # --- Пробуем через канал ---
+    # --- Если не найден в базе, пробуем через канал ---
     try:
         chat_member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
         user = chat_member.user
         full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
         username_display = f"@{user.username}" if user.username else full_name if full_name else f"ID:{user.id}"
-        await message.reply(f"Пользователь в канале:\n{username_display}\nID: {user.id}")
+        await message.reply(f"Пользователь в канале:\nUsername/Имя: {username_display}\nID: {user.id}")
         return
     except Exception:
-        # --- Если не найден нигде ---
         await message.reply(f"Пользователь с ID {user_id} не найден в базе и не состоит в канале.")
 
 # --- Запуск бота ---
