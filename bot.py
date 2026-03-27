@@ -8,21 +8,27 @@ from database import init_db, add_participant, has_participated, get_next_code
 # Загрузка переменных окружения
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID")  # id канала для проверки подписки
-ADMIN_ID = os.getenv("ADMIN_ID")      # id админа
+CHANNEL_ID = os.getenv("CHANNEL_ID")
+ADMIN_ID = os.getenv("ADMIN_ID")
 
 # Инициализация бота и базы данных
 init_db()
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# Глобальный флаг розыгрыша
+raffle_active = False
+
 # Команда для отправки сообщения с кнопкой в канал
 @dp.message(Command(commands=["send"]))
 async def send_message(message: types.Message):
+    global raffle_active
     try:
         if str(message.from_user.id) != ADMIN_ID:
             await message.reply("У вас нет доступа к этой команде.")
             return
+
+        raffle_active = True  # включаем розыгрыш
 
         # Создаем inline кнопку
         button = InlineKeyboardButton(text="Участвовать", callback_data="participate")
@@ -33,14 +39,31 @@ async def send_message(message: types.Message):
             text="Нажмите кнопку, чтобы участвовать!",
             reply_markup=keyboard
         )
-        await message.reply("Сообщение отправлено.")
+        await message.reply("Розыгрыш запущен. Сообщение отправлено.")
     except Exception as e:
         await message.reply(f"Ошибка: {e}")
+
+# Команда для остановки розыгрыша
+@dp.message(Command(commands=["stop"]))
+async def stop_raffle(message: types.Message):
+    global raffle_active
+    if str(message.from_user.id) != ADMIN_ID:
+        await message.reply("У вас нет доступа к этой команде.")
+        return
+
+    raffle_active = False
+    await message.reply("Розыгрыш остановлен. Нажатия на старую кнопку больше не будут учитываться.")
 
 # Обработка нажатия inline-кнопки
 @dp.callback_query(lambda c: c.data == "participate")
 async def handle_participation(callback: types.CallbackQuery):
+    global raffle_active
     user = callback.from_user
+
+    if not raffle_active:
+        await callback.answer("Розыгрыш сейчас не активен.", show_alert=True)
+        return
+
     try:
         # Проверка подписки
         chat_member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user.id)
